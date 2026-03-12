@@ -1,0 +1,18 @@
+{
+    "sourceFile": ".gitignore",
+    "activeCommit": 0,
+    "commits": [
+        {
+            "activePatchIndex": 0,
+            "patches": [
+                {
+                    "date": 1773306677439,
+                    "content": "Index: \n===================================================================\n--- \n+++ \n"
+                }
+            ],
+            "date": 1773306677439,
+            "name": "Commit-0",
+            "content": "# python\r\n__pycache__/\r\n*.pyc\r\n\r\n# virtual env\r\n.venv/\r\nvenv/\r\n\r\n# logs\r\n*.log\r\ndata/logs/\r\n\r\n# dataset\r\ndata/\r\n\r\n# vscode\r\n.vscode/"
+        }
+    ]
+}

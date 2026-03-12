@@ -1,0 +1,17 @@
+# python
+__pycache__/
+*.pyc
+
+# virtual env
+.venv/
+venv/
+
+# logs
+*.log
+data/logs/
+
+# dataset
+data/
+
+# vscode
+.vscode/

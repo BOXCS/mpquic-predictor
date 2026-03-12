@@ -1,0 +1,9 @@
+method,success_rate,loss_rate,avg_rtt,total_rounds,scenario
+Round Robin,98.0,2.0,48.33,100,normal
+LSTM Predictor,99.0,1.0,78.55,100,normal
+Round Robin,87.0,13.0,125.68,100,path1_degraded
+LSTM Predictor,95.0,5.0,165.63,100,path1_degraded
+Round Robin,85.0,15.0,94.55,100,path2_degraded
+LSTM Predictor,71.0,29.0,197.19,100,path2_degraded
+Round Robin,80.0,20.0,180.07,100,both_degraded
+LSTM Predictor,98.0,2.0,161.36,100,both_degraded
