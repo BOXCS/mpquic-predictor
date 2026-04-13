@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 LOG_DIR = os.path.join(os.path.dirname(__file__), '../data/logs')
-LOG_FILE = os.path.join(LOG_DIR, 'path_log.csv')
+LOG_FILE = os.path.join(LOG_DIR, 'path_log2.csv')
 
 HEADERS = [
     'timestamp', 'path_id', 'rtt_ms',
