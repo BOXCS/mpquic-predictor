@@ -1,0 +1,95 @@
+# requirements.txt — MP-QUIC LSTM IoT prediction system
+# Python 3.10+ required for all layers.
+#
+# Install: pip install -r requirements.txt
+#
+# Layers:  simulator/  model/  server/  web/backend/  hardware/  evaluation/
+# Note: hardware/ packages (adafruit-circuitpython-dht, RPi.GPIO) are only
+#       needed on the Raspberry Pi. They are listed at the end and can be
+#       skipped on the development / server machine.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+# ── Shared / utilities ───────────────────────────────────────────────────────
+# Environment variable loading from .env (hardware/config.py, server startup)
+python-dotenv==1.2.2
+
+# Async HTTP client used by simulator/network_emulator.py
+requests==2.32.5
+
+
+# ── ML / Model layer (model/, evaluation/) ───────────────────────────────────
+# Core ML stack — versions must stay in sync (TF ships its own Keras)
+tensorflow==2.21.0
+keras==3.12.1
+
+# Numerical computing and data wrangling
+numpy==2.2.6
+pandas==2.3.3
+scipy==1.15.3
+
+# Feature engineering and evaluation metrics
+scikit-learn==1.7.2
+
+# Visualisation — evaluation/compare.py, evaluation/visualize_results.py,
+# model/train.py (precision-recall curve)
+matplotlib==3.10.8
+
+
+# ── Transport layer (server/mpquic_server.py, hardware/mpquic_client.py) ─────
+# Multipath QUIC implementation over asyncio.
+# Depends on: cryptography, pylsqpack, certifi, pyopenssl (pulled automatically).
+aioquic==1.3.0
+
+# TLS/cryptography backend required by aioquic
+cryptography==48.0.0
+
+# QPACK header-compression library required by aioquic
+pylsqpack==0.3.24
+
+# CA certificates required by aioquic TLS handshake
+certifi==2026.2.25
+
+
+# ── Server layer (server/) ───────────────────────────────────────────────────
+# Async HTTP framework for the FastAPI backend (web/backend/)
+# also used by server/ integration tests
+fastapi==0.136.3
+
+# ASGI server for FastAPI (web/backend/main.py)
+uvicorn==0.34.3
+
+# Pydantic v2 — request / response validation in FastAPI routes
+pydantic==2.13.4
+
+# SQLAlchemy ORM — database sessions in web/backend/ routes and db_writer.py
+SQLAlchemy==2.0.50
+
+# Synchronous SQLite driver used by SQLAlchemy (stdlib, listed for clarity)
+# No extra install needed — sqlite3 is part of the Python standard library.
+
+
+# ── Web backend (web/backend/) ───────────────────────────────────────────────
+# Legacy Flask stubs (server/server.py, server/integrated_server.py) kept
+# during the transition to the FastAPI layer; can be removed once fully migrated.
+Flask==3.1.3
+Werkzeug==3.1.6
+
+# WebSocket support for uvicorn (ws_broadcaster.py)
+websockets==14.2
+
+
+# ── Simulation layer (simulator/) ────────────────────────────────────────────
+# All imports in simulator/ use stdlib (asyncio, json, time, random) plus
+# requests (listed above) and tensorflow/numpy (listed above).
+# No additional packages needed.
+
+
+# ── Hardware layer (hardware/) ───────────────────────────────────────────────
+# These packages are only needed on the Raspberry Pi 5 target hardware.
+# On the server / development machine: comment these lines out or use
+#   pip install -r requirements.txt --ignore-requires-python
+# ── Uncomment when installing on Raspberry Pi: ──
+# adafruit-circuitpython-dht==4.0.12   # DHT22 sensor (replaces deprecated Adafruit_DHT)
+# RPi.GPIO==0.7.1                      # GPIO pin control (fallback; gpiozero preferred)
+# adafruit-blinka==8.55.0              # CircuitPython compatibility layer for Pi

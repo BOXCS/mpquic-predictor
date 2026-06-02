@@ -1,17 +1,36 @@
-# python
+# Python
 __pycache__/
 *.pyc
-
-# virtual env
-.venv/
+*.pyo
+*.pyd
 venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
 
-# logs
-*.log
-data/logs/
+# Environment & Secrets
+*.env
+*.key
+*.crt
 
-# dataset
-data/
+# Model Artifacts
+model/saved/*.tflite
 
-# vscode
+# Frontend
+web/frontend/node_modules/
+web/frontend/dist/
+web/frontend/.vite/
+
+# OS & Editor
+.DS_Store
+Thumbs.db
 .vscode/
+.idea/
+
+# Data & Logs
+*.log
+data/
+data/logs/
