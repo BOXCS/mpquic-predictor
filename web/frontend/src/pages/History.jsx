@@ -9,8 +9,10 @@ import { useState, useEffect } from 'react'
 import Navbar from '../components/Navbar'
 import { Clock } from 'lucide-react'
 import { useWebSocket } from '../hooks/useWebSocket'
+// import { useWS } from '../context/WebSocketContext'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
+const envApiUrl = import.meta.env.VITE_API_URL;
+const API_URL = (envApiUrl && envApiUrl.trim() !== '') ? envApiUrl : '';
 
 function formatTime(isoStr) {
   if (!isoStr) return '—'
@@ -33,7 +35,7 @@ function EmptyState({ message }) {
 export default function History() {
   const { isConnected } = useWebSocket() // Just for Navbar dot
   const [activeTab, setActiveTab] = useState('events') // 'events' | 'metrics'
-  
+
   const [events, setEvents] = useState([])
   const [metrics, setMetrics] = useState([])
   const [loading, setLoading] = useState(true)
@@ -62,7 +64,7 @@ export default function History() {
       <main className="mx-auto max-w-7xl p-6 flex flex-col gap-6">
         <div className="flex items-center justify-between border-b pb-4" style={{ borderColor: 'var(--border-default)' }}>
           <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>History</h1>
-          
+
           <div className="flex gap-2 p-1 rounded-md" style={{ backgroundColor: 'var(--bg-surface-raised)' }}>
             <button
               onClick={() => setActiveTab('events')}

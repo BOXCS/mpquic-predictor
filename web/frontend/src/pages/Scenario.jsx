@@ -10,8 +10,10 @@ import { useState, useEffect } from 'react'
 import Navbar from '../components/Navbar'
 import { BarChart2, CheckCircle, Circle } from 'lucide-react'
 import { useWebSocket } from '../hooks/useWebSocket'
+// import { useWS } from '../context/WebSocketContext'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
+const envApiUrl = import.meta.env.VITE_API_URL;
+const API_URL = (envApiUrl && envApiUrl.trim() !== '') ? envApiUrl : '';
 
 function ScenarioCard({ scenario, isLive }) {
   const { name, simulated, description, path1, path2 } = scenario
@@ -77,8 +79,8 @@ function EmptyState({ message }) {
 }
 
 export default function Scenario() {
-  const { isConnected } = useWebSocket() // Just for Navbar dot
-  
+  const { isConnected } = useWebSocket // Just for Navbar dot
+
   const [scenarios, setScenarios] = useState([])
   const [liveScenario, setLiveScenario] = useState(null)
   const [loading, setLoading] = useState(true)

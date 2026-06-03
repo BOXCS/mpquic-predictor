@@ -2,7 +2,7 @@
  * useMetrics.js — Metrics Data Layer Hook
  *
  * The ONLY hook components are allowed to import for live network data.
- * Consumes useWebSocket() internally and exposes structured, chart-ready state.
+ * Consumes useWS() internally and exposes structured, chart-ready state.
  * Contains no JSX and no WebSocket management — transformation logic only.
  *
  * Exposes:
@@ -25,8 +25,8 @@
  *   switchingEvents  {Array}   Cumulative log of all switching events received
  *                              during this browser session (newest first).
  *
- *   isConnected      {boolean} Forwarded from useWebSocket.
- *   lastUpdated      {Date|null} Forwarded from useWebSocket.
+ *   isConnected      {boolean} Forwarded from useWS.
+ *   lastUpdated      {Date|null} Forwarded from useWS.
  *
  * Invariants:
  *   - Never throws on null/malformed payload — every access is guarded.
@@ -37,7 +37,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { useWebSocket } from './useWebSocket'
+import { useWebSocket } from '../hooks/useWebSocket'
 
 /** Maximum metric data points retained per path. */
 const WINDOW_SIZE = 60
@@ -84,10 +84,10 @@ export function useMetrics() {
           const updated = [
             ...existing,
             {
-              rtt_ms:      point.rtt_ms      ?? null,
+              rtt_ms: point.rtt_ms ?? null,
               goodput_bps: point.goodput_bps ?? null,
-              loss_pct:    point.loss_pct    ?? null,
-              timestamp:   point.timestamp   ?? null,
+              loss_pct: point.loss_pct ?? null,
+              timestamp: point.timestamp ?? null,
             },
           ]
           // Enforce FIFO cap
@@ -105,10 +105,10 @@ export function useMetrics() {
           const pid = point?.path_id
           if (pid == null) continue
           next[pid] = {
-            rtt_ms:      point.rtt_ms      ?? null,
+            rtt_ms: point.rtt_ms ?? null,
             goodput_bps: point.goodput_bps ?? null,
-            loss_pct:    point.loss_pct    ?? null,
-            timestamp:   point.timestamp   ?? null,
+            loss_pct: point.loss_pct ?? null,
+            timestamp: point.timestamp ?? null,
           }
         }
         return next
@@ -118,10 +118,10 @@ export function useMetrics() {
     // ── 2. Update prediction ─────────────────────────────────────────────────
     if (payload.prediction != null) {
       setPrediction({
-        predicted_path:      payload.prediction.predicted_path      ?? null,
-        confidence:          payload.prediction.confidence          ?? null,
+        predicted_path: payload.prediction.predicted_path ?? null,
+        confidence: payload.prediction.confidence ?? null,
         degradation_detected: payload.prediction.degradation_detected ?? false,
-        timestamp:           payload.prediction.timestamp           ?? null,
+        timestamp: payload.prediction.timestamp ?? null,
       })
     }
 

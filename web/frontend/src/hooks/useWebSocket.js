@@ -19,16 +19,29 @@
  *   - Cleans up (closes socket, clears timers) on component unmount.
  *   - Ignores non-"update" message types (e.g. the "connected" handshake).
  *   - Contains NO business logic — only raw connection + JSON parse.
+ *
+ * StrictMode note:
+ *   React StrictMode intentionally mounts → unmounts → remounts in dev.
+ *   Each call to connect() receives its own `aborted` flag so that when
+ *   cleanup fires before the socket reaches OPEN state the onclose handler
+ *   does NOT schedule a reconnect — preventing the
+ *   "WebSocket is closed before the connection is established" error loop.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://127.0.0.1:8000/ws'
+function getWsUrl() {
+  const envUrl = import.meta.env.VITE_WS_URL;
+  if (envUrl && envUrl.trim() !== '') return envUrl;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws`;
+}
+const WS_URL = getWsUrl();
 
 // Backoff config
-const BACKOFF_BASE_MS   = 1_000   // initial reconnect delay
-const BACKOFF_MAX_MS    = 30_000  // ceiling
-const BACKOFF_JITTER    = 0.2     // ± 20 % random jitter
+const BACKOFF_BASE_MS = 1_000   // initial reconnect delay
+const BACKOFF_MAX_MS = 30_000  // ceiling
+const BACKOFF_JITTER = 0.2     // ± 20 % random jitter
 
 function nextDelay(attempt) {
   const exp = Math.min(BACKOFF_BASE_MS * 2 ** attempt, BACKOFF_MAX_MS)
@@ -37,15 +50,15 @@ function nextDelay(attempt) {
 }
 
 export function useWebSocket() {
-  const [payload, setPayload]         = useState(null)
+  const [payload, setPayload] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
 
   // Refs so callbacks always see current values without re-running the effect.
-  const wsRef      = useRef(null)
+  const wsRef = useRef(null)
   const attemptRef = useRef(0)
-  const timerRef   = useRef(null)
-  const unmounted  = useRef(false)
+  const timerRef = useRef(null)
+  const unmounted = useRef(false)
 
   const connect = useCallback(() => {
     if (unmounted.current) return
@@ -58,17 +71,34 @@ export function useWebSocket() {
       wsRef.current = null
     }
 
+    // Per-connection abort flag — captured in closures below.
+    // Set to true by cleanup so that onclose does NOT schedule a reconnect
+    // when React StrictMode unmounts the component before the socket opens.
+    let aborted = false
+
     const ws = new WebSocket(WS_URL)
     wsRef.current = ws
 
+    // Expose a cancel function that sets the abort flag and silently closes
+    // this specific socket without triggering the reconnect path.
+    ws._abort = () => {
+      aborted = true
+      ws.onclose = null
+      ws.onerror = null
+      // CONNECTING (0) sockets can still be closed; CLOSED (3) is a no-op.
+      if (ws.readyState !== WebSocket.CLOSED) {
+        ws.close()
+      }
+    }
+
     ws.onopen = () => {
-      if (unmounted.current) { ws.close(); return }
+      if (aborted || unmounted.current) { ws._abort(); return }
       attemptRef.current = 0
       setIsConnected(true)
     }
 
     ws.onmessage = (event) => {
-      if (unmounted.current) return
+      if (aborted || unmounted.current) return
       try {
         const data = JSON.parse(event.data)
         // Skip the initial handshake message — only store "update" payloads.
@@ -82,7 +112,9 @@ export function useWebSocket() {
     }
 
     ws.onclose = () => {
-      if (unmounted.current) return
+      // If this socket was deliberately aborted (e.g. StrictMode unmount /
+      // stale-socket replacement) do NOT schedule a reconnect.
+      if (aborted || unmounted.current) return
       setIsConnected(false)
       wsRef.current = null
       // Schedule reconnect with backoff.
@@ -93,6 +125,11 @@ export function useWebSocket() {
 
     ws.onerror = () => {
       // onclose fires right after onerror — let it handle reconnect.
+      // Mark as aborted only if we are already unmounted so the close
+      // handler skips the reconnect; otherwise let onclose do its job.
+      if (unmounted.current) {
+        aborted = true
+      }
       ws.close()
     }
   }, [])   // stable reference; WS_URL and helpers are module-level constants
@@ -105,9 +142,15 @@ export function useWebSocket() {
       unmounted.current = true
       clearTimeout(timerRef.current)
       if (wsRef.current) {
-        wsRef.current.onclose = null
-        wsRef.current.onerror = null
-        wsRef.current.close()
+        // Use the per-connection abort helper so in-flight CONNECTING sockets
+        // are cancelled cleanly without triggering the reconnect path.
+        if (typeof wsRef.current._abort === 'function') {
+          wsRef.current._abort()
+        } else {
+          wsRef.current.onclose = null
+          wsRef.current.onerror = null
+          wsRef.current.close()
+        }
         wsRef.current = null
       }
     }

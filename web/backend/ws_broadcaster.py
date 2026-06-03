@@ -30,18 +30,15 @@ router = APIRouter(tags=["websocket"])
 
 # ── Connection registry ────────────────────────────────────────────────────────
 _clients: set[WebSocket] = set()
-_lock = asyncio.Lock()
 
 
 async def _add(ws: WebSocket) -> None:
-    async with _lock:
-        _clients.add(ws)
+    _clients.add(ws)
     logger.info("WS client connected. Total: %d", len(_clients))
 
 
 async def _remove(ws: WebSocket) -> None:
-    async with _lock:
-        _clients.discard(ws)
+    _clients.discard(ws)
     logger.info("WS client disconnected. Total: %d", len(_clients))
 
 
@@ -53,8 +50,8 @@ async def broadcast(payload: dict[str, Any]) -> None:
         return
     message = json.dumps(payload)
     dead: list[WebSocket] = []
-    async with _lock:
-        snapshot = list(_clients)
+    
+    snapshot = list(_clients)
     for ws in snapshot:
         try:
             await ws.send_text(message)
@@ -114,24 +111,8 @@ async def start_push_loop(interval_sec: float = 1.0) -> None:
                 except StopIteration:
                     pass
         except Exception as exc:
-            logger.warning("WS push loop error (skipping cycle): %s", exc)
+            import traceback
+            logger.error("WS push loop CRASHED: %s\n%s", exc, traceback.format_exc())
 
 
-# ── WebSocket endpoint ────────────────────────────────────────────────────────
-
-@router.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket) -> None:
-    """Accept a WebSocket connection and hold it open until the client disconnects."""
-    await ws.accept()
-    await _add(ws)
-    # Send an initial handshake confirming the connection is live.
-    await ws.send_text(json.dumps({"type": "connected", "message": "MP-QUIC dashboard stream active"}))
-    try:
-        while True:
-            # Keep the connection alive; the server pushes data via broadcast().
-            # We still need to await something to detect disconnects.
-            await ws.receive_text()
-    except WebSocketDisconnect:
-        pass
-    finally:
-        await _remove(ws)
+# WebSocket endpoint is registered in main.py to avoid APIRouter issues

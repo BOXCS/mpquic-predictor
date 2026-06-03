@@ -22,6 +22,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
+import fastapi
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -110,6 +111,24 @@ def create_app() -> FastAPI:
     def health() -> dict:
         """Lightweight liveness probe — no DB query required."""
         return {"status": "ok", "message": "MP-QUIC dashboard backend is running"}
+
+    # ── WebSocket Endpoint ────────────────────────────────────────────────────
+    @app.websocket("/ws")
+    async def websocket_endpoint(websocket: fastapi.WebSocket) -> None:
+        """Accept a WebSocket connection and hold it open until the client disconnects."""
+        await websocket.accept()
+        await ws_broadcaster._add(websocket)
+        # Send an initial handshake confirming the connection is live.
+        import json
+        await websocket.send_text(json.dumps({"type": "connected", "message": "MP-QUIC dashboard stream active"}))
+        try:
+            while True:
+                # Keep the connection alive; the server pushes data via broadcast().
+                await websocket.receive_text()
+        except fastapi.WebSocketDisconnect:
+            pass
+        finally:
+            await ws_broadcaster._remove(websocket)
 
     return app
 
