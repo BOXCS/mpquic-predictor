@@ -12,11 +12,9 @@ Update this file after every meaningful implementation change.
 
 ## Current Goal
 
-Integrate the Raspberry Pi hardware layer with the working server stack.
-The full simulator pipeline (Phases 1–5) is verified stable.
-Next session begins Phase 6: deploy the server on the dev machine,
-connect the Pi as a dual-path QUIC client, and validate end-to-end
-telemetry + switching on real hardware.
+Phase 6 — Hardware Integration is **in progress**.
+`hardware/mpquic_client.py` is complete and ready for on-Pi testing with the server.
+Next step: implement `hardware/path_switcher.py` (socket-bind mechanism).
 
 ---
 
@@ -52,9 +50,47 @@ telemetry + switching on real hardware.
 - `model/export_tflite.py` — TFLite conversion finalized;
   output: `model/saved/lstm_model.tflite` (141.1 KB, SELECT_TF_OPS + Flex delegate)
 
-### Hardware Config
-- `hardware/config.py` — all IP addresses, ports, intervals, and thresholds
-  defined; all values sourced from env vars with sensible defaults
+### Hardware Config (Phase 6) ✅
+- `hardware/config.py` — fully updated for real hardware with all Phase 6
+  resolved values:
+  - `SERVER_HOST=192.168.1.10` (LAN IP of dev machine)
+  - `ALLOWED_CLIENT_IPS=['192.168.1.18']` (Pi's LAN IP, parsed as list)
+  - `SERVER_PORT_PATH1=5001`, `SERVER_PORT_PATH2=5002` (UDP, firewall open)
+  - `DHT_GPIO_PIN=4`, `DHT_SENSOR_TYPE=DHT11` (3-pin module, built-in pull-up)
+  - `PATH_SWITCH_MECHANISM=socket_bind` (application-level; no sudo)
+  - `SWITCH_MARGIN_PCT=20`, `SWITCH_COOLDOWN_SEC=30` (hysteresis)
+  - Added `path1_addr()` / `path2_addr()` returning `(host, port)` tuples
+    for use by the QUIC client
+- `.env` (server) — updated with all Phase 6 hardware values; now fully
+  defines `SERVER_HOST`, `ALLOWED_CLIENT_IPS`, `INFERENCE_INTERVAL_SEC`,
+  and all switching hysteresis parameters
+
+### Hardware — Sensor Reader (Phase 6) ✅
+- `hardware/sensor_reader.py` — DHT11 sensor reader, Pi-only:
+  - Single public function: `read_sensor() -> tuple[float | None, float | None]`
+  - Up to 3 retries with 0.5 s delay between each on `RuntimeError`
+  - Returns `(None, None)` on persistent failure — never raises or crashes
+  - `_PIN_MAP` resolves BCM int to `board.D<n>` pin object
+  - `use_pulseio=False` avoids root requirement on Pi OS
+  - Standalone loop (`python3 -m hardware.sensor_reader`) prints readings
+    at `SENSOR_INTERVAL_SEC` cadence for on-Pi wiring verification
+  - All config sourced from `hardware/config.py` — no hardcoded values
+
+### Hardware — QUIC Client (Phase 6) ✅
+- `hardware/mpquic_client.py` — dual-path MP-QUIC telemetry client, Pi-only:
+  - Persistent QUIC connection per active path via `aioquic.asyncio.connect`
+  - `MPQuicClientProtocol` handles outgoing streams and incoming server-push
+    switching recommendations (`StreamDataReceived`)
+  - Reads DHT11 sensor each tick; sends null-safe payload even on sensor failure
+  - Payload schema: `{path_id, temperature, humidity, rtt_ms, loss_pct, timestamp_ms}`
+    (matches `server/metric_monitor.py` expected fields)
+  - Forwards server push recommendations to `path_switcher.handle_recommendation()`
+    via lazy import (path_switcher not yet implemented — graceful fallback)
+  - Path 2 (eth0/LAN) gated behind `--enable-path2` CLI flag or
+    `ENABLE_PATH2=true` in `.env` — no code change needed when LAN cable connects
+  - `asyncio.gather(return_exceptions=True)` ensures one path failure does not
+    kill the other
+  - All addresses sourced from `hardware/config.path1_addr()` / `path2_addr()`
 
 ### Server Layer
 - `server/mpquic_server.py` — QUIC UDP server implemented using `aioquic`,
@@ -114,7 +150,9 @@ telemetry + switching on real hardware.
 
 ## In Progress
 
-- Phase 6 — Hardware Integration (starts next session)
+- **Phase 6 — Hardware Integration**: `hardware/config.py`, `.env`,
+  `hardware/sensor_reader.py`, and `hardware/mpquic_client.py` complete.
+  Next: `hardware/path_switcher.py` (socket-bind switching mechanism).
 
 ---
 
@@ -122,51 +160,26 @@ telemetry + switching on real hardware.
 
 ### Phase 6 — Hardware Integration (Raspberry Pi)
 
-1. **`hardware/sensor_reader.py`** — read DHT22 temperature/humidity sensor
-   and forward readings to the MP-QUIC client payload
-2. **`hardware/mpquic_client.py`** — dual-path QUIC client running on the Pi;
-   sends telemetry concurrently over wlan0 (UDP 5001) and eth0 (UDP 5002)
-3. **`hardware/path_switcher.py`** — receives switching recommendation from
-   server and executes OS-level path switch (ip rule / route manipulation)
-4. **End-to-end validation** — Pi connected to dev-machine server;
-   verify telemetry arrives, inference runs, switches are executed correctly
+1. ~~`hardware/sensor_reader.py`~~ ✅ done
+2. ~~`hardware/mpquic_client.py`~~ ✅ done
+3. **`hardware/path_switcher.py`** ← **implement next**
+   - Receives switching recommendation dict from mpquic_client
+   - Implements `handle_recommendation(rec: dict) -> None`
+   - Uses `socket_bind` mechanism: records target interface for the
+     client's next transmission (no OS routing change; no sudo)
+   - Thread-safe: recommendation may arrive from the QUIC receive callback
+     while the send loop is running
+4. **End-to-end validation** — Pi → server → dashboard;
+   verify RTTChart updates, PathStatus reflects real path, AlertBanner
+   fires on first switch
 
 ---
 
 ## Open Questions
 
-> [!IMPORTANT]
-> These must be answered before Phase 6 begins.
-
-### Network topology
-- **What is the server's LAN IP?** The Pi needs `SERVER_HOST` set to the actual
-  LAN IP of the dev machine (not `127.0.0.1`). This must be confirmed and added
-  to `.env` as `SERVER_HOST=<LAN_IP>` before the Pi can connect.
-- **Are ports 5001 and 5002 (UDP) open on the dev machine's firewall?**
-  `aioquic` listens on UDP — `ufw allow 5001/udp && ufw allow 5002/udp` may be needed.
-- **Does the Pi have a static IP or DHCP?** `mpquic_server.py` uses an IP
-  allowlist (`ALLOWED_CLIENT_IPS`). The Pi's IP must be added to `.env` as
-  `ALLOWED_CLIENT_IPS=<pi_ip>` before connections will be accepted.
-
-### Hardware
-- **Which GPIO pin is the DHT22 data line connected to?**
-  `hardware/sensor_reader.py` needs the exact BCM pin number.
-- **Is the DHT22 a DHT22 or AM2302?** The `adafruit_dht` driver init call
-  differs between the two variants.
-- **Which wlan0 SSID will the Pi connect to during the test?**
-  Needed to confirm path 1 is consistently reachable.
-
-### Path switching mechanism
-- **What OS-level command should `path_switcher.py` run?**
-  Options: `ip rule add`, `ip route`, `iptables MARK`, or application-level
-  socket binding. Confirm which is appropriate for the Pi's OS version.
-- **Does the Pi need `sudo` for routing commands, or will the process run as root?**
-
-### Model deployment
-- **Will inference run on the server (current default) or on the Pi via TFLite?**
-  Currently `server/predictor_service.py` runs inference server-side. If the Pi
-  needs local inference, `model/saved/lstm_model.tflite` + Flex delegate must be
-  installed on the Pi (`tensorflow` or `tflite-runtime` with custom ops support).
+> [!NOTE]
+> All pre-Phase-6 open questions are resolved. No blockers remaining.
+> See Architecture Decisions for the resolved values.
 
 ---
 
@@ -223,23 +236,18 @@ telemetry + switching on real hardware.
 - `model/saved/lstm_model.tflite` uses SELECT_TF_OPS (Flex delegate);
   on Raspberry Pi use full TF runtime or link `libtensorflowlite_flex`
 
-### Environment variable status (`.env` as of 2026-06-04)
+### Environment variable status (`.env` as of 2026-06-12)
 
-| Variable              | Defined in `.env`? | Current value         | Notes                                      |
-|-----------------------|--------------------|-----------------------|--------------------------------------------|
-| `CORS_ORIGINS`        | ✅ Yes             | `http://localhost:5173,http://127.0.0.1:5173` | Web backend CORS allowlist |
-| `SWITCH_MARGIN_PCT`   | ✅ Yes             | `20`                  | Hysteresis: alt must be ≥20 % lower RTT   |
-| `SWITCH_COOLDOWN_SEC` | ✅ Yes             | `30`                  | Min seconds between switches               |
-| `INFERENCE_INTERVAL_SEC` | ❌ Not set      | `1.0` (default)       | Defined as default in `hardware/config.py` |
-| `SERVER_HOST`         | ❌ Not set         | `127.0.0.1` (default) | **Must be set to LAN IP before Pi connects** |
-| `SERVER_PORT_PATH1`   | ❌ Not set         | `5001` (default)      | UDP port for wlan0; open in firewall first |
-| `SERVER_PORT_PATH2`   | ❌ Not set         | `5002` (default)      | UDP port for eth0; open in firewall first  |
-| `ALLOWED_CLIENT_IPS`  | ❌ Not set         | `127.0.0.1` (default) | **Must include Pi's IP before connecting** |
-
-> [!CAUTION]
-> `SERVER_HOST` and `ALLOWED_CLIENT_IPS` **must** be set in `.env` before
-> starting `python3 -m server.mpquic_server` for the hardware session.
-> The server will silently reject all connections from the Pi otherwise.
+| Variable              | Defined in `.env`? | Current value              | Notes                                       |
+|-----------------------|--------------------|----------------------------|---------------------------------------------|
+| `CORS_ORIGINS`        | ✅ Yes             | `http://localhost:5173,...` | Web backend CORS allowlist                 |
+| `SERVER_HOST`         | ✅ Yes             | `192.168.1.10`             | LAN IP of dev machine (server)              |
+| `SERVER_PORT_PATH1`   | ✅ Yes             | `5001`                     | UDP; firewall confirmed open                |
+| `SERVER_PORT_PATH2`   | ✅ Yes             | `5002`                     | UDP; firewall confirmed open                |
+| `ALLOWED_CLIENT_IPS`  | ✅ Yes             | `192.168.1.18`             | Raspberry Pi 4 LAN IP                       |
+| `INFERENCE_INTERVAL_SEC` | ✅ Yes          | `1.0`                      | Explicit (was using default before)         |
+| `SWITCH_MARGIN_PCT`   | ✅ Yes             | `20`                       | Hysteresis: alt must be ≥20 % lower RTT    |
+| `SWITCH_COOLDOWN_SEC` | ✅ Yes             | `30`                       | Min seconds between switches                |
 
 ### Bug fixes applied this session
 - **WebSocket 1006**: module-level `asyncio.Lock()` in `ws_broadcaster.py`
@@ -255,10 +263,38 @@ telemetry + switching on real hardware.
   Fixed by comparing avg RTT of both paths on first full window.
 - **No hysteresis**: single RTT spike triggered a switch.
   Fixed with `_alt_path_is_better()` requiring `SWITCH_MARGIN_PCT` % improvement.
+- **`mpquic_server.py` bind-address OSError (Phase 6)**: `aioquic.serve()`
+  was called with `host=SERVER_HOST` (`192.168.1.10`). This is the
+  client-facing LAN IP of the server machine — not a locally assignable
+  address from the OS's perspective when the network interface binds.
+  Fixed by changing both `serve()` calls to `host="0.0.0.0"` so the OS
+  binds the UDP socket on all interfaces. `SERVER_HOST` is now used only
+  by the Raspberry Pi client to know where to connect — never by the
+  server-side bind call. Log messages updated to show both bind address
+  and client-facing address clearly.
+- **SQLite "database is locked" on Windows+WSL (Phase 6)**: when the server
+  runs as Windows-native Python 3.11 but the project root is on the WSL
+  filesystem (`\\wsl$\...`), SQLite file locking fails at the OS level
+  because Windows and WSL use incompatible locking primitives on cross-OS
+  mounts. Fixed in `server/db_writer.py`: the database directory is now
+  read from the `DB_PATH` env var (default: project-relative `data/` on
+  Linux). On Windows, `.env` sets `DB_PATH=C:/mpquic-data/` so both
+  database files (`metrics.db`, `sensor_data.db`) live entirely on NTFS,
+  which SQLite can lock correctly. The directory is created on startup via
+  `os.makedirs(DATA_DIR, exist_ok=True)`. No ORM models or write functions
+  were changed — only the path resolution block at the top of the module.
 
-### Next session start point
-**Phase 6 — Hardware Integration with Raspberry Pi.**
-Start by answering the Open Questions above (LAN IP, Pi IP, GPIO pin,
-path-switcher mechanism), then set `.env` accordingly, then implement
-`hardware/sensor_reader.py` → `hardware/mpquic_client.py` → `hardware/path_switcher.py`
-in that order.
+
+### Phase 6 resolved hardware values (2026-06-12)
+- **Server LAN IP**: `192.168.1.10` → `SERVER_HOST`
+- **Pi LAN IP**: `192.168.1.18` → `ALLOWED_CLIENT_IPS`
+- **UDP ports**: 5001 (wlan0), 5002 (eth0) → open in firewall ✅
+- **Sensor**: DHT11, BCM pin 4, 3-pin module with built-in pull-up
+- **Path switching**: application-level socket binding (`socket_bind`); no sudo
+- **Inference**: server-side only; TFLite on Pi is fallback only
+- **Pi model**: Raspberry Pi 4 (not Pi 5 — note: `architecture.md` still says
+  "Raspberry Pi 5"; update that doc if it matters for the thesis)
+
+### Next step
+Implement `hardware/path_switcher.py` (socket-bind mechanism, no sudo).
+This file runs **on the Raspberry Pi only** — do not import it server-side.

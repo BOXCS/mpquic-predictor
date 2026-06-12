@@ -4,7 +4,7 @@
 
 | Layer         | Technology                     | Role                                                       |
 | ------------- | ------------------------------ | ---------------------------------------------------------- |
-| IoT Hardware  | Raspberry Pi 5 + DHT22         | IoT sender node; reads temperature & humidity sensor data  |
+| IoT Hardware  | Raspberry Pi 4 + DHT11         | IoT sender node; reads temperature & humidity sensor data  |
 | Transport     | aioquic + asyncio (MP-QUIC)    | Multipath QUIC over wlan0 + eth0 simultaneously            |
 | ML Model      | TensorFlow/Keras + TFLite      | LSTM training & lightweight inference on edge (Raspi)      |
 | Preprocessing | scikit-learn + pandas + NumPy  | Feature engineering, normalization, and model evaluation   |
@@ -16,7 +16,7 @@
 
 ## System Boundaries
 
-- `hardware/`   — Reads DHT22 sensor data, sends it via MP-QUIC client (wlan0 + eth0),
+- `hardware/`   — Reads DHT11 sensor data, sends it via MP-QUIC client (wlan0 + eth0),
                   and executes path switching based on server recommendations
 - `simulator/`  — Generates data for 14 degradation scenarios and wraps tc netem
                   for network condition emulation during the lab phase
@@ -35,7 +35,7 @@
 - **metrics.db (SQLite)**: Stores RTT, goodput, LSTM prediction results,
   and path switching events per data transmission session
 - **sensor_data.db (SQLite)**: Stores temperature and humidity readings
-  from the DHT22 sensor along with transmission timestamps
+  from the DHT11 sensor along with transmission timestamps
 - **path_log.csv**: Tabular simulation log for degradation scenarios;
   used as evaluation input and source for thesis charts
 - **saved/ (model artifacts)**: Stores lstm_model.keras, scaler.pkl,

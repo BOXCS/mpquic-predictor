@@ -13,13 +13,31 @@ import os
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker
+from dotenv import load_dotenv
 
-# ── Configuration & Setup ──────────────────────────────────────────────────────
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+load_dotenv()
+
+# ── Database path resolution ───────────────────────────────────────────────────
+# DB_PATH sets the directory that holds both SQLite database files.
+#
+# Why this exists: when the server runs on Windows (Python 3.11 native) but
+# the project root lives on the WSL filesystem (\\wsl$\...), SQLite file
+# locking fails with "database is locked" because Windows and WSL use
+# different locking primitives on cross-OS mounts.
+#
+# Solution: point DB_PATH at a Windows-native directory (e.g. C:/mpquic-data/)
+# so both the server process and SQLite operate entirely within the Windows
+# NTFS filesystem, avoiding the cross-OS locking issue entirely.
+#
+# On Linux / WSL-only deployments, leave DB_PATH unset and the default
+# project-relative data/ directory is used (existing behaviour).
+_DEFAULT_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+DATA_DIR: str = os.getenv("DB_PATH", _DEFAULT_DATA_DIR).rstrip("/\\")
+
 os.makedirs(DATA_DIR, exist_ok=True)
 
-METRICS_DB_PATH = os.path.join(DATA_DIR, "metrics.db")
-SENSOR_DB_PATH = os.path.join(DATA_DIR, "sensor_data.db")
+METRICS_DB_PATH: str = os.path.join(DATA_DIR, "metrics.db")
+SENSOR_DB_PATH: str  = os.path.join(DATA_DIR, "sensor_data.db")
 
 metrics_engine = create_engine(f"sqlite:///{METRICS_DB_PATH}", future=True)
 sensor_engine = create_engine(f"sqlite:///{SENSOR_DB_PATH}", future=True)

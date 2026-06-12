@@ -135,20 +135,22 @@ async def run_server():
 
     logger.info(f"Starting MP-QUIC server...")
     logger.info(f"Allowed Client IPs: {ALLOWED_CLIENT_IPS}")
-    logger.info(f"Path 1 Listener (wlan0) on UDP {SERVER_HOST}:{SERVER_PORT_PATH1}")
-    logger.info(f"Path 2 Listener (eth0)  on UDP {SERVER_HOST}:{SERVER_PORT_PATH2}")
+    logger.info(f"Path 1 Listener (wlan0) binding 0.0.0.0:{SERVER_PORT_PATH1}  (clients connect via {SERVER_HOST}:{SERVER_PORT_PATH1})")
+    logger.info(f"Path 2 Listener (eth0)  binding 0.0.0.0:{SERVER_PORT_PATH2}  (clients connect via {SERVER_HOST}:{SERVER_PORT_PATH2})")
 
-    # Start two listeners concurrently
+    # Bind to 0.0.0.0 so the OS assigns the right interface.
+    # SERVER_HOST is the client-facing LAN IP used by the Raspberry Pi to
+    # reach this machine — it must NOT be used as the bind address here.
     try:
         await asyncio.gather(
             serve(
-                host=SERVER_HOST,
+                host="0.0.0.0",
                 port=SERVER_PORT_PATH1,
                 configuration=configuration,
                 create_protocol=MPQuicServerProtocol,
             ),
             serve(
-                host=SERVER_HOST,
+                host="0.0.0.0",
                 port=SERVER_PORT_PATH2,
                 configuration=configuration,
                 create_protocol=MPQuicServerProtocol,
