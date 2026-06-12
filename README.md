@@ -25,3 +25,23 @@ cd \\wsl$\Ubuntu-22.04\home\zaky\mpquic-ai
 
 # Jalankan server
 python -m server.mpquic_server
+
+# Aktivasi Virtual Environment & Pindah ke direktori project di WSL
+C:\mpquic-venv\Scripts\activate
+cd \\wsl$\Ubuntu-22.04\home\zaky\mpquic-ai
+
+# Jalankan Uvicorn backend server
+python -m uvicorn web.backend.main:app --reload --host 0.0.0.0 --port 8080
+
+# Pindah ke direktori frontend
+cd ~/mpquic-ai/web/frontend
+
+# Jalankan development server
+npm run dev
+
+# Pindah ke direktori project di Raspi & Aktivasi venv
+cd ~/mpquic-ai
+source venv/bin/activate
+
+# Jalankan client hardware
+python3 -m hardware.mpquic_client
